@@ -1,0 +1,15 @@
+.venv/
+venv/
+__pycache__/
+*.pyc
+.env
+.env.*
+!.env.example
+*.log
+*.pcap
+*.pcapng
+.DS_Store
+.vscode/
+.idea/
+*.bak
+config/healthcare-ue.yaml

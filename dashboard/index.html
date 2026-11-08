@@ -1,0 +1,123 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>5G Patient Monitoring</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body { font-family: Arial, sans-serif; background: #f4f6fb; padding: 25px; }
+    h1 { text-align: center; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px; }
+    .card { background: white; padding: 20px; border-radius: 12px; }
+    .value { font-size: 28px; font-weight: bold; }
+    canvas { max-height: 220px; }
+  </style>
+</head>
+<body>
+  <h1>5G Remote Patient Monitoring</h1>
+  <p id="status">Connecting...</p>
+  <div id="alertPanel" style="
+    background: #e8f5e9;
+    padding: 20px;
+    border-radius: 12px;
+    margin-bottom: 20px;
+  ">
+    <h2>Patient Health Status</h2>
+    <div id="alertMessage">Waiting for patient data...</div>
+</div>
+  <div class="grid">
+    <div class="card">
+      <h2>Heart Rate</h2>
+      <div class="value" id="hr">--</div>
+      <canvas id="hrChart"></canvas>
+    </div>
+    <div class="card">
+      <h2>SpO₂</h2>
+      <div class="value" id="spo2">--</div>
+      <canvas id="spo2Chart"></canvas>
+    </div>
+    <div class="card">
+      <h2>Temperature</h2>
+      <div class="value" id="temp">--</div>
+      <canvas id="tempChart"></canvas>
+    </div>
+  </div>
+
+<script>
+const charts = {};
+
+function makeChart(id, label, color) {
+  return new Chart(document.getElementById(id), {
+    type: "line",
+    data: {
+      labels: [],
+      datasets: [{
+        label,
+        data: [],
+        borderColor: color,
+        tension: 0.3
+      }]
+    },
+    options: { animation: false, responsive: true }
+  });
+}
+
+charts.hr = makeChart("hrChart", "BPM", "#e74c3c");
+charts.spo2 = makeChart("spo2Chart", "SpO₂ %", "#3498db");
+charts.temp = makeChart("tempChart", "°C", "#27ae60");
+
+async function updateDashboard() {
+  try {
+    const response = await fetch("/api/vitals");
+    if (!response.ok) throw new Error("API unavailable");
+
+    const data = await response.json();
+    if (!data.length) return;
+
+    const latest = data[data.length - 1];
+    const alertPanel = document.getElementById("alertPanel");
+    const alertMessage = document.getElementById("alertMessage");
+
+    if (latest.alerts && latest.alerts.length > 0) {
+        alertPanel.style.background = "#ffdddd";
+        alertMessage.innerHTML =
+            "🚨 EMERGENCY ALERT<br>" +
+            latest.alerts.map(alert => "⚠️ " + alert).join("<br>");
+    } else {
+        alertPanel.style.background = "#e8f5e9";
+        alertMessage.textContent = "✅ Patient vitals are normal";
+    }
+    document.getElementById("hr").textContent = latest.heart_rate + " BPM";
+    document.getElementById("spo2").textContent = latest.spo2 + "%";
+    document.getElementById("temp").textContent = latest.temperature + " °C";
+
+    const recent = data.slice(-20);
+    const labels = recent.map((r, i) =>
+      r.timestamp ? new Date(r.timestamp).toLocaleTimeString() : String(i + 1)
+    );
+
+    for (const [key, field] of [
+      ["hr", "heart_rate"],
+      ["spo2", "spo2"],
+      ["temp", "temperature"]
+    ]) {
+      charts[key].data.labels = labels;
+      charts[key].data.datasets[0].data = recent.map(r => r[field]);
+      charts[key].update();
+    }
+
+    document.getElementById("status").textContent =
+      "Patient: " + latest.patient_id + " | Live data connected";
+  } catch (error) {
+    document.getElementById("status").textContent = "Connection error";
+    console.error(error);
+  }
+}
+
+updateDashboard();
+setInterval(updateDashboard, 2000);
+</script>
+</body>
+</html>
